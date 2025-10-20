@@ -3,3 +3,7 @@ uvicorn[standard]
 httpx
 pytest
 pytest-asyncio
+APScheduler
+pydantic-settings
+respx
+asgi-lifespan

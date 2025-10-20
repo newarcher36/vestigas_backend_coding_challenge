@@ -30,11 +30,12 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/backend`)"
       - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "traefik.http.services.backend.loadbalancer.server.port=${HTTP_PORT:-8000}"
     environment:
-      - LOGISTICS_A_URL=http://mock_a:8000/api/logistics-a
-      - LOGISTICS_B_URL=http://mock_b:8000/api/logistics-b
+      - LOGISTICS_A_URL=${LOGISTICS_A_URL}
+      - LOGISTICS_B_URL=${LOGISTICS_B_URL}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - SCHEDULER_CRON=${SCHEDULER_CRON}
 
   db:
     image: postgres:17
@@ -69,9 +70,9 @@ services:
       - "traefik.http.routers.mocka.entrypoints=web"
       - "traefik.http.middlewares.mocka-stripprefix.stripprefix.prefixes=/mock-a"
       - "traefik.http.routers.mocka.middlewares=mocka-stripprefix"
-      - "traefik.http.services.mocka.loadbalancer.server.port=8000"
+      - "traefik.http.services.mocka.loadbalancer.server.port=${HTTP_PORT:-8000}"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8000/healthz || exit 1"]
+      test: ["CMD-SHELL", "curl -fs http://localhost:${HTTP_PORT:-8000}/healthz || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -90,9 +91,9 @@ services:
       - "traefik.http.routers.mockb.entrypoints=web"
       - "traefik.http.middlewares.mockb-stripprefix.stripprefix.prefixes=/mock-b"
       - "traefik.http.routers.mockb.middlewares=mockb-stripprefix"
-      - "traefik.http.services.mockb.loadbalancer.server.port=8000"
+      - "traefik.http.services.mockb.loadbalancer.server.port=${HTTP_PORT:-8000}"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8000/healthz || exit 1"]
+      test: ["CMD-SHELL", "curl -fs http://localhost:${HTTP_PORT:-8000}/healthz || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 5

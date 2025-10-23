@@ -7,3 +7,4 @@ APScheduler
 pydantic-settings
 respx
 asgi-lifespan
+python-dateutil

@@ -1,43 +1,52 @@
-from apscheduler.triggers.cron import CronTrigger
+from datetime import datetime, timezone
+from unittest.mock import Mock, patch
 
-import backend.adapters.scheduling.job_scheduler as sched_mod
-from backend.adapters.scheduling.job_scheduler import start_scheduler
-
-
-class DummyScheduler:
-    def __init__(self, timezone=None):
-        self.timezone = timezone
-        self.added = []
-        self.started = False
-
-    def add_job(self, func, trigger=None, kwargs=None, id=None, replace_existing=None):
-        self.added.append({
-            "func": func,
-            "trigger": trigger,
-            "kwargs": kwargs or {},
-            "id": id,
-            "replace_existing": replace_existing,
-        })
-
-    def start(self):
-        self.started = True
-
-    def shutdown(self, wait=False):
-        pass
+from backend.adapters.scheduling import job_scheduler
+from backend.adapters.scheduling.job_config import JobConfig
+from backend.adapters.scheduling.job_scheduler import Scheduler
 
 
-def test_start_scheduler_adds_cron_job(monkeypatch):
-    # Patch BackgroundScheduler class to our dummy
-    monkeypatch.setattr(sched_mod, "BackgroundScheduler", DummyScheduler)
+def test_scheduler_run_fetch_partner_deliveries_job_schedules_and_starts():
+    fetch_use_case = Mock()
+    clock = Mock()
+    job_config = Mock(spec=JobConfig)
+    job_config.model_dump.return_value = {"id" : "123"}
 
-    partner_urls = {"http://a", "http://b"}
-    cron_trigger = CronTrigger.from_crontab("0 * * * *", timezone="UTC")
-    scheduler = start_scheduler(partner_urls, cron_trigger)
+    scheduler = Scheduler(fetch_use_case, clock, job_config)
 
-    assert isinstance(scheduler, DummyScheduler)
-    assert scheduler.started is True
-    assert len(scheduler.added) == 1
-    job = scheduler.added[0]
-    assert isinstance(job["trigger"], CronTrigger)
-    assert set(job["kwargs"].get("urls", [])) == {"http://a", "http://b"}
-    assert job.get("id") == "partners-fetch"
+    mock_scheduler_instance = Mock()
+
+    with patch.object(
+        job_scheduler,
+        "BackgroundScheduler",
+        return_value=mock_scheduler_instance,
+    ) as mock_scheduler_cls:
+        background_scheduler = scheduler.start_fetch_partner_deliveries_scheduled_job()
+
+    mock_scheduler_cls.assert_called_once_with(timezone="UTC")
+    job_config.model_dump.assert_called_once_with()
+    mock_scheduler_instance.add_job.assert_called_once_with(
+        scheduler._run_fetch_job,
+        **{"id" : "123"},
+    )
+    mock_scheduler_instance.start.assert_called_once_with()
+    assert background_scheduler is mock_scheduler_instance
+
+
+def test_scheduler_run_fetch_job_invokes_use_case_with_expected_arguments():
+    fetch_use_case = Mock()
+    clock = Mock()
+    job_config = Mock()
+
+    scheduler = Scheduler(fetch_use_case, clock, job_config)
+
+    scheduled_time = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    clock.get_utc_now.return_value = scheduled_time
+    fetch_use_case.fetch_partner_deliveries.return_value = []
+
+    partner_sources = {"source-a"}
+
+    scheduler._run_fetch_job("site-456", partner_sources)
+
+    clock.get_utc_now.assert_called_once_with()
+    fetch_use_case.fetch_partner_deliveries.assert_called_once_with("site-456", scheduled_time, partner_sources)

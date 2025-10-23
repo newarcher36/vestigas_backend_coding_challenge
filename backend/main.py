@@ -1,25 +1,21 @@
 import logging
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from backend.adapters.scheduling.job_scheduler import start_scheduler
-from backend.shared.config.settings import Settings
+
+from fastapi import FastAPI
+
+from backend.adapters.scheduling.job_scheduler import Scheduler
 
 logger = logging.getLogger("uvicorn.error")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = Settings()
-    app.state.settings = settings
-    scheduler = start_scheduler(settings.partner_urls(), settings.cron_trigger)
-
+    logger.info("Application started.")
+    scheduler = Scheduler
+    bg_scheduler = scheduler.start_fetch_partner_deliveries_scheduled_job()
     yield
-
-    try:
-        scheduler.shutdown(wait=False)
-        logger.info("Scheduler shutdown complete.")
-    except Exception as e:
-        logger.error(f"Error during scheduler shutdown: {e}")
+    bg_scheduler.shutdown(wait=True)
+    logger.info("Scheduler shutdown complete.")
     logger.info("Application shutdown complete.")
 
 

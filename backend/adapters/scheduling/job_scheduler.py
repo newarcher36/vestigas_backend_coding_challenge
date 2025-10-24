@@ -15,6 +15,8 @@ from backend.application.use_cases.fetch_deliveries import (
     get_fetch_partner_deliveries_use_case,
 )
 from backend.shared.utils.date_utils import Clock, get_utc_clock
+from domain.partner_delivery_fetch_error import PartnerDeliveryFetchError
+from domain.stats import Stats
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -43,7 +45,8 @@ class Scheduler:
         """Invoke the fetch use case as the scheduled job."""
         utc_now = self._clock.get_utc_now()
         job_id = uuid4()
-        self._job_repository.create_job(job_id, JobStatus.PROCESSING, self._clock.get_utc_now(), self._clock.get_utc_now(), {},None)
+        input: dict[str, str] = {"site_id": site_id, "date": utc_now.isoformat()}
+        self._job_repository.create_job(job_id, JobStatus.PROCESSING, self._clock.get_utc_now(),self._clock.get_utc_now(), input)
         logger.info("Job %s created at %s.", job_id, utc_now.isoformat())
         logger.info(
             "Fetching partner deliveries for site %s using sources %s (scheduled at %s).",
@@ -51,14 +54,18 @@ class Scheduler:
             sorted(partner_sources),
             utc_now.isoformat(),
         )
-        deliveries = self._fetch_deliveries_use_case.fetch_partner_deliveries(site_id, utc_now, partner_sources)
-        logger.info(
-            "Fetched %d partner deliveries for site %s (scheduled at %s).",
-            len(deliveries),
-            site_id,
-            utc_now.isoformat(),
-        )
+        for source in partner_sources:
+            stats: Stats = Stats.for_partner(source)
+            error: str | None = None
+            try:
+                stats = self._fetch_deliveries_use_case.fetch_partner_deliveries(site_id, utc_now, source)
+            except PartnerDeliveryFetchError as exc:
+                logger.error("Failed to fetch deliveries for source %s: %s", source, exc)
+                error = str(exc)
 
+            self._job_repository.update_job_stats(job_id, stats, error)
+
+        logger.info("Job %s ended at %s.", job_id, utc_now.isoformat())
 
 @lru_cache
 def get_job_scheduler(

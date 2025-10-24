@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import List
+from typing import Any
 
-from backend.application.use_cases.partner_mapper_shared import to_iso8601_utc
-from backend.domain.partner_delivery import PartnerDelivery
 from backend.domain.unified_delivery import UnifiedDelivery
+from shared.utils.date_utils import to_iso8601_utc
 
 
 def _normalize_status(status_code: str) -> str:
@@ -16,25 +15,19 @@ def _normalize_status(status_code: str) -> str:
     return status_map[normalized_status] if normalized_status in status_map else "pending"
 
 
-def _map_partner_b_delivery(partner_delivery: PartnerDelivery, site_id: str) -> UnifiedDelivery:
-    """Map a single Partner B delivery entry into the unified delivery model."""
-    payload = partner_delivery.delivery_data
-    delivered_at = to_iso8601_utc(payload["deliveredAt"])
-    receiver = payload.get("receiver") or {}
-    signed = bool(receiver.get("signed"))
+def extract_signed_delivery(delivery_data: dict[str, Any]) -> bool:
+    receiver = delivery_data.get("receiver") or {}
+    return bool(receiver.get("signed"))
 
-    unified_delivery = UnifiedDelivery(
-        id=payload["id"],
-        supplier=payload["provider"],
-        delivered_at=delivered_at,
-        status=_normalize_status(payload.get("statusCode", "")),
-        signed=signed,
+
+def map_partner_delivery_b(source: str, site_id: str, delivery_data: dict[str, Any]) -> UnifiedDelivery:
+    """Map Partner B payload into UnifiedDelivery instances using the shared mapper."""
+    return UnifiedDelivery(
+        id=delivery_data["id"],
+        supplier=delivery_data["provider"],
+        delivered_at=to_iso8601_utc(delivery_data.get("deliveredAt")),
+        status=_normalize_status(delivery_data.get("statusCode", "")),
+        signed=extract_signed_delivery(delivery_data),
         siteId=site_id,
-        source=partner_delivery.source,
+        source=source,
     )
-    return unified_delivery
-
-
-def map_partner_b_response(partner_deliveries: List[PartnerDelivery], site_id: str) -> List[UnifiedDelivery]:
-    """Map Partner B payload sequence into UnifiedDelivery instances."""
-    return [_map_partner_b_delivery(partner_delivery, site_id) for partner_delivery in partner_deliveries]

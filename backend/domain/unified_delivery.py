@@ -2,25 +2,23 @@ from __future__ import annotations
 
 from datetime import datetime, time
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel
 
 
 class UnifiedDelivery(BaseModel):
     id: str
     supplier: str
-    deliveredAt: datetime = Field(alias="delivered_at")
+    delivered_at: str
     status: str
     signed: bool
     siteId: str
     source: str
-    deliveryScore: float = Field(alias="delivery_score")
 
     model_config = {"populate_by_name": True, "frozen": True}
 
-    @model_validator(mode="after")
-    def set_delivery_score(self):
-        object.__setattr__(self, "deliveryScore", compute_delivery_score(self.deliveredAt, self.signed))
-        return self
+    @property
+    def delivery_score(self) -> float:
+        return compute_delivery_score(self.delivered_at, self.signed)
 
 
 def compute_delivery_score(delivered_at: datetime, signed: bool) -> float:

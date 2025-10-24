@@ -1,8 +1,7 @@
-from typing import List
+from typing import Any
 
-from backend.application.use_cases.partner_mapper_shared import to_iso8601_utc
-from backend.domain.partner_delivery import PartnerDelivery
 from backend.domain.unified_delivery import UnifiedDelivery
+from shared.utils.date_utils import to_iso8601_utc
 
 
 def _normalize_status(status: str) -> str:
@@ -10,23 +9,14 @@ def _normalize_status(status: str) -> str:
     return normalized_status if normalized_status in {"delivered", "cancelled", "pending"} else "pending"
 
 
-def _map_partner_a_delivery(partner_delivery: PartnerDelivery, site_id: str) -> UnifiedDelivery:
-    """Map a single Partner A delivery entry into the unified delivery model."""
-    payload = partner_delivery.delivery_data
-    delivered_at = to_iso8601_utc(payload["timestamp"])
-    signed = bool(payload.get("signedBy"))
-    unified_delivery = UnifiedDelivery(
-        id=payload["deliveryId"],
-        supplier=payload["supplier"],
-        delivered_at=delivered_at,
-        status=_normalize_status(payload.get("status", "")),
-        signed=signed,
+def map_partner_delivery_a(source: str, site_id: str, delivery_data: dict[str, Any]) -> UnifiedDelivery:
+    """Map Partner A payload into UnifiedDelivery instances using the shared mapper."""
+    return UnifiedDelivery(
+        id=delivery_data["deliveryId"],
+        supplier=delivery_data["supplier"],
+        delivered_at=to_iso8601_utc(delivery_data.get("timestamp")),
+        status=_normalize_status(delivery_data.get("status", "")),
+        signed=bool(delivery_data.get("signedBy")),
         siteId=site_id,
-        source=partner_delivery.source,
+        source=source,
     )
-    return unified_delivery
-
-
-def map_partner_a_response(partner_deliveries: List[PartnerDelivery], site_id: str) -> List[UnifiedDelivery]:
-    """Map Partner A payload into UnifiedDelivery instances."""
-    return [_map_partner_a_delivery(partner_delivery, site_id) for partner_delivery in partner_deliveries]

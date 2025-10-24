@@ -14,6 +14,10 @@ from backend.application.use_cases.fetch_deliveries import (
     FetchPartnerDeliveriesUseCase,
     get_fetch_partner_deliveries_use_case,
 )
+from backend.application.use_cases.store_unified_deliveries import (
+    StoreUnifiedDeliveriesUseCase,
+    get_store_unified_deliveries_use_case,
+)
 from backend.shared.utils.date_utils import Clock, get_utc_clock
 from domain.partner_delivery_fetch_error import PartnerDeliveryFetchError
 from domain.stats import Stats
@@ -22,9 +26,16 @@ logger = logging.getLogger("uvicorn.error")
 
 
 class Scheduler:
-    def __init__(self, fetch_partner_deliveries_use_case: FetchPartnerDeliveriesUseCase, clock: Clock,
-                 job_config: JobConfig, job_repository: JobsRepository):
+    def __init__(
+        self,
+        fetch_partner_deliveries_use_case: FetchPartnerDeliveriesUseCase,
+        store_unified_deliveries_use_case: StoreUnifiedDeliveriesUseCase,
+        clock: Clock,
+        job_config: JobConfig,
+        job_repository: JobsRepository,
+    ):
         self._fetch_deliveries_use_case = fetch_partner_deliveries_use_case
+        self._store_unified_deliveries_use_case = store_unified_deliveries_use_case
         self._clock = clock
         self._job_config = job_config
         self._job_repository = job_repository
@@ -58,7 +69,12 @@ class Scheduler:
             stats: Stats = Stats.for_partner(source)
             error: str | None = None
             try:
-                stats = self._fetch_deliveries_use_case.fetch_partner_deliveries(site_id, utc_now, source)
+                stats, unified_deliveries = self._fetch_deliveries_use_case.fetch_partner_deliveries(
+                    site_id,
+                    utc_now,
+                    source,
+                )
+                self._store_unified_deliveries_use_case.store(job_id, unified_deliveries)
             except PartnerDeliveryFetchError as exc:
                 logger.error("Failed to fetch deliveries for source %s: %s", source, exc)
                 error = str(exc)
@@ -70,8 +86,15 @@ class Scheduler:
 @lru_cache
 def get_job_scheduler(
         fetch_partner_deliveries_use_case: FetchPartnerDeliveriesUseCase = Depends(get_fetch_partner_deliveries_use_case),
+        store_unified_deliveries_use_case: StoreUnifiedDeliveriesUseCase = Depends(get_store_unified_deliveries_use_case),
         clock: Clock = Depends(get_utc_clock),
         jobs_repository: JobsRepository = Depends(get_jobs_port)
 ) -> Scheduler:
     job_config: JobConfig = get_default_job_config()
-    return Scheduler(fetch_partner_deliveries_use_case, clock, job_config, jobs_repository)
+    return Scheduler(
+        fetch_partner_deliveries_use_case,
+        store_unified_deliveries_use_case,
+        clock,
+        job_config,
+        jobs_repository,
+    )

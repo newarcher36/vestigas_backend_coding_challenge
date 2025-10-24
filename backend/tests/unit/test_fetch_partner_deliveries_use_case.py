@@ -19,14 +19,15 @@ def test_fetch_partner_deliveries_use_case_fetches_and_processes_partner_deliver
 
     with patch("backend.application.use_cases.fetch_deliveries.PartnerDeliveryProcessor") as mock_processor_cls:
         mock_processor_instance = mock_processor_cls.return_value
-        mock_processor_instance.process.return_value = ([], expected_stats)
+        expected_unified_deliveries = []
+        mock_processor_instance.process.return_value = (expected_unified_deliveries, expected_stats)
 
         use_case = FetchPartnerDeliveriesUseCase(
             fetch_partner_deliveries_port=fetch_port,
             partner_delivery_mapper=mapper,
         )
 
-        result = use_case.fetch_partner_deliveries("site-123", fetched_at, "Partner A")
+        stats, unified_deliveries = use_case.fetch_partner_deliveries("site-123", fetched_at, "Partner A")
 
     fetch_port.fetch.assert_called_once_with("Partner A")
     mock_processor_cls.assert_called_once_with(mapper)
@@ -36,4 +37,5 @@ def test_fetch_partner_deliveries_use_case_fetches_and_processes_partner_deliver
         site_id="site-123",
         fetched_at=fetched_at,
     )
-    assert result is expected_stats
+    assert stats is expected_stats
+    assert unified_deliveries is expected_unified_deliveries

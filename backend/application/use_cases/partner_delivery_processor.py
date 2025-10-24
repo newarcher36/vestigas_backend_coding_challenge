@@ -7,7 +7,7 @@ from typing import Any, Iterable, List
 from domain.stats import Stats
 from domain.unified_delivery import UnifiedDelivery
 
-from application.use_cases.partner_delivery_mapper import PartnerDeliveryMapper
+from application.use_cases.mapper.partner_delivery_mapper import PartnerDeliveryMapper
 from backend.domain.partner_delivery import PartnerDelivery
 
 logger = logging.getLogger(__name__)

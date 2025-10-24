@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from functools import lru_cache
+from typing import List, Tuple
+
 from fastapi import Depends
 
-from application.use_cases.partner_delivery_mapper import (
+from application.use_cases.mapper.partner_delivery_mapper import (
     PartnerDeliveryMapper,
     get_partner_delivery_mapper,
 )
@@ -14,6 +16,7 @@ from backend.adapters.outbound.partners.fetch_partner_deliveries_http_adapter im
 from backend.domain.partner_delivery import PartnerDelivery
 from backend.ports.fetch_partner_deliveries_port import FetchPartnerDeliveriesPort
 from domain.stats import Stats
+from domain.unified_delivery import UnifiedDelivery
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,12 @@ class FetchPartnerDeliveriesUseCase:
         self._partner_delivery_mapper = partner_delivery_mapper
         self._partner_delivery_processor = PartnerDeliveryProcessor(partner_delivery_mapper)
 
-    def fetch_partner_deliveries(self, site_id: str, fetched_at: datetime, source: str) -> Stats:
+    def fetch_partner_deliveries(
+        self,
+        site_id: str,
+        fetched_at: datetime,
+        source: str,
+    ) -> Tuple[Stats, List[UnifiedDelivery]]:
         logger.info("Fetching partner deliveries for site %s : datetime %s : sources %s", site_id)
         delivery: PartnerDelivery = self._fetch_partner_deliveries_port.fetch(source)
         unified_deliveries, stats = self._partner_delivery_processor.process(
@@ -38,7 +46,7 @@ class FetchPartnerDeliveriesUseCase:
             fetched_at=fetched_at,
         )
         # store unified deliveries
-        return stats
+        return stats, unified_deliveries
 
 
 @lru_cache

@@ -1,8 +1,8 @@
 from functools import lru_cache
 from typing import Any, Callable
 
-from application.use_cases.parnter_a_delivery_mapper import map_partner_delivery_a
-from application.use_cases.parnter_b_delivery_mapper import map_partner_delivery_b
+from application.use_cases.mapper.parnter_a_delivery_mapper import map_partner_delivery_a
+from application.use_cases.mapper.parnter_b_delivery_mapper import map_partner_delivery_b
 from backend.shared.config.settings import get_settings, Settings
 from domain.unified_delivery import UnifiedDelivery
 

@@ -11,12 +11,13 @@ from domain.stats import Stats
 
 def test_scheduler_run_fetch_partner_deliveries_job_schedules_and_starts():
     fetch_use_case = Mock()
+    store_use_case = Mock()
     clock = Mock()
     job_config = Mock(spec=JobConfig)
     job_config.model_dump.return_value = {"id": "123"}
     jobs_repository = Mock()
 
-    scheduler = Scheduler(fetch_use_case, clock, job_config, jobs_repository)
+    scheduler = Scheduler(fetch_use_case, store_use_case, clock, job_config, jobs_repository)
 
     mock_scheduler_instance = Mock()
 
@@ -39,6 +40,7 @@ def test_scheduler_run_fetch_partner_deliveries_job_schedules_and_starts():
 
 def test_scheduler_run_fetch_job_invokes_use_case_with_expected_arguments():
     fetch_use_case = Mock()
+    store_use_case = Mock()
     clock = Mock()
     job_config = Mock()
     jobs_repository = Mock()
@@ -46,11 +48,12 @@ def test_scheduler_run_fetch_job_invokes_use_case_with_expected_arguments():
     scheduled_time = datetime(2024, 1, 15, tzinfo=timezone.utc)
     clock.get_utc_now.return_value = scheduled_time
     stats_result = Stats.for_partner("source-a")
-    fetch_use_case.fetch_partner_deliveries.return_value = stats_result
+    unified_deliveries = []
+    fetch_use_case.fetch_partner_deliveries.return_value = (stats_result, unified_deliveries)
 
     partner_sources = {"source-a"}
 
-    scheduler = Scheduler(fetch_use_case, clock, job_config, jobs_repository)
+    scheduler = Scheduler(fetch_use_case, store_use_case, clock, job_config, jobs_repository)
 
     scheduler._run_fetch_job("site-456", partner_sources)
 
@@ -66,4 +69,5 @@ def test_scheduler_run_fetch_job_invokes_use_case_with_expected_arguments():
     assert updated_at == scheduled_time
     assert input_payload == {"site_id": "site-456", "date": scheduled_time.isoformat()}
 
+    store_use_case.store.assert_called_once_with(job_id, unified_deliveries)
     jobs_repository.update_job_stats.assert_called_once_with(job_id, stats_result, None)

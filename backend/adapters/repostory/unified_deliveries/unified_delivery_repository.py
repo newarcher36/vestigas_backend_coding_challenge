@@ -2,15 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import lru_cache
-from typing import Callable
+from typing import Any, Callable
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.adapters.repostory.jobs.job_model import Base
-from adapters.repostory.postgres_config import (
+from backend.adapters.repostory.postgres_config import (
     PostgresConfig,
     get_postgres_config,
 )
@@ -32,6 +32,33 @@ class UnifiedDeliveriesRepository(UnifiedDeliveriesPort):
             model = self._to_model(job_id, unified_delivery)
             session.add(model)
             session.commit()
+
+    def list_deliveries(self, limit: int, offset: int) -> tuple[list[dict[str, Any]], int]:
+        with self._session_factory() as session:
+            total = session.scalar(select(func.count()).select_from(UnifiedDeliveryModel)) or 0
+            stmt = (
+                select(UnifiedDeliveryModel)
+                .order_by(UnifiedDeliveryModel.delivery_score.desc(), UnifiedDeliveryModel.id.asc())
+                .offset(offset)
+                .limit(limit)
+            )
+            deliveries = session.scalars(stmt).all()
+            items: list[dict[str, Any]] = []
+            for delivery in deliveries:
+                items.append(
+                    {
+                        "jobId": delivery.job_id,
+                        "id": delivery.delivery_id,
+                        "supplier": delivery.supplier,
+                        "deliveredAt": delivery.delivered_at,
+                        "status": delivery.status,
+                        "signed": delivery.signed,
+                        "siteId": delivery.site_id,
+                        "source": delivery.source,
+                        "deliveryScore": float(delivery.delivery_score),
+                    },
+                )
+        return items, total
 
     @staticmethod
     def _to_model(job_id: UUID, unified_delivery: UnifiedDelivery) -> UnifiedDeliveryModel:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from backend.adapters.scheduling.job_status import JobStatus
@@ -19,4 +20,9 @@ class JobsPort(ABC):
     @abstractmethod
     def update_job_stats(self, job_id: UUID, stats: Stats, error: str | None = None) -> None:
         """Update the stats payload and error message for a persisted job."""
+        pass
+
+    @abstractmethod
+    def list_jobs(self, limit: int, offset: int) -> tuple[list[dict[str, Any]], int]:
+        """Return a paginated collection of persisted jobs and the overall total."""
         pass

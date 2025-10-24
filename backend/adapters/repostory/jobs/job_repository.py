@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import lru_cache
-from typing import Callable
+from typing import Any, Callable
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.adapters.scheduling.job_status import JobStatus
@@ -45,6 +45,31 @@ class JobsRepository(JobsPort):
             job_model.stats = stats.as_dict()
             job_model.error = error
             session.commit()
+
+    def list_jobs(self, limit: int, offset: int) -> tuple[list[dict[str, Any]], int]:
+        with self._session_factory() as session:
+            total = session.scalar(select(func.count()).select_from(JobModel)) or 0
+            stmt = (
+                select(JobModel)
+                .order_by(JobModel.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            jobs = session.scalars(stmt).all()
+            items: list[dict[str, Any]] = []
+            for job in jobs:
+                items.append(
+                    {
+                        "jobId": job.id,
+                        "status": job.status,
+                        "createdAt": job.created_at,
+                        "updatedAt": job.updated_at,
+                        "input": job.input,
+                        "stats": job.stats,
+                        "error": job.error,
+                    },
+                )
+        return items, total
 
 def _build_session_factory(config: PostgresConfig) -> sessionmaker[Session]:
     engine = create_engine(config.postgres_dsn, future=True, pool_pre_ping=True)

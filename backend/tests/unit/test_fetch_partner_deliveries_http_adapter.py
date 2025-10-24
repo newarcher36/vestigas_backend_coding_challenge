@@ -10,6 +10,7 @@ from backend.adapters.outbound.partners.fetch_partner_deliveries_http_adapter im
     PartnerDeliveriesHttpAdapter,
 )
 from backend.adapters.outbound.partners.http_config import HttpConfig
+from backend.domain.partner_delivery import PartnerDelivery
 from backend.domain.partner_delivery_fetch_error import PartnerDeliveryFetchError
 
 
@@ -44,9 +45,8 @@ def test_fetch_partner_deliveries_successful_response():
 
     async_client_cls.assert_called_once_with(timeout=5.0)
     client.post.assert_awaited_once_with("https://partner-a.test")
-    assert len(deliveries) == 1
-    assert deliveries[0].source == "Partner A"
-    assert deliveries[0].delivery_data == [{"delivery_id": "123"}]
+    assert isinstance(deliveries, PartnerDelivery)
+    assert deliveries.delivery_data == [{"delivery_id": "123"}]
 
 
 def test_fetch_partner_deliveries_http_status_error():
@@ -98,3 +98,14 @@ def test_fetch_partner_deliveries_request_error():
     assert str(exc_info.value) == f"Failed to fetch deliveries from {endpoint.name}: connection lost"
     assert exc_info.value.detail == "connection lost"
     assert exc_info.value.source == endpoint.name
+
+
+def test_fetch_partner_deliveries_unknown_source():
+    adapter = _build_adapter()
+
+    with pytest.raises(PartnerDeliveryFetchError) as exc_info:
+        adapter.fetch("Partner X")
+
+    assert str(exc_info.value) == "Failed to fetch deliveries from Partner X: Unknown partner source"
+    assert exc_info.value.detail == "Unknown partner source"
+    assert exc_info.value.source == "Partner X"

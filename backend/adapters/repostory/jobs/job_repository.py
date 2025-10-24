@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import lru_cache
-from typing import Any, Callable, Mapping
+from typing import Callable
 from uuid import UUID
 
 from fastapi import Depends
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from backend.adapters.scheduling.job_status import JobStatus
 from backend.adapters.repostory.jobs.job_model import JobModel, Base
-from backend.adapters.repostory.jobs.postgres_config import PostgresConfig, get_postgres_config
+from backend.adapters.repostory.postgres_config import PostgresConfig, get_postgres_config
 from backend.ports.jobs_port import JobsPort
 from domain.stats import Stats
 

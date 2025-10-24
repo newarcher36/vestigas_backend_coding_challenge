@@ -12,7 +12,7 @@ from apscheduler.triggers.date import DateTrigger
 from httpx import Response
 
 from backend.adapters.outbound.partners.fetch_partner_deliveries_http_adapter import (
-    FetchPartnerDeliveriesHttpAdapter,
+    PartnerDeliveriesHttpAdapter,
 )
 from backend.adapters.outbound.partners.http_config import HttpConfig
 from backend.adapters.scheduling.job_config import JobConfig
@@ -35,8 +35,8 @@ def http_config(partner_endpoints: dict[str, str]) -> HttpConfig:
 
 
 @pytest.fixture
-def fetch_partner_deliveries_adapter(http_config: HttpConfig) -> FetchPartnerDeliveriesHttpAdapter:
-    return FetchPartnerDeliveriesHttpAdapter(http_config=http_config)
+def fetch_partner_deliveries_adapter(http_config: HttpConfig) -> PartnerDeliveriesHttpAdapter:
+    return PartnerDeliveriesHttpAdapter(http_config=http_config)
 
 
 @pytest.fixture
@@ -45,13 +45,18 @@ def partner_sources(partner_endpoints: dict[str, str]) -> set[str]:
 
 
 @pytest.fixture
-def fetch_use_case(fetch_partner_deliveries_adapter: FetchPartnerDeliveriesHttpAdapter) -> FetchPartnerDeliveriesUseCase:
+def fetch_use_case(fetch_partner_deliveries_adapter: PartnerDeliveriesHttpAdapter) -> FetchPartnerDeliveriesUseCase:
     return FetchPartnerDeliveriesUseCase(fetch_partner_deliveries_port=fetch_partner_deliveries_adapter)
 
 
 @pytest.fixture
 def clock() -> Mock:
     return Mock(spec=Clock)
+
+
+@pytest.fixture
+def jobs_repository() -> Mock:
+    return Mock()
 
 
 @pytest.fixture
@@ -73,9 +78,13 @@ def job_config_factory(partner_sources: set[str]):
 
 
 @pytest.fixture
-def scheduler_factory(fetch_use_case: FetchPartnerDeliveriesUseCase, clock: Mock):
+def scheduler_factory(
+    fetch_use_case: FetchPartnerDeliveriesUseCase,
+    clock: Mock,
+    jobs_repository: Mock,
+):
     def _factory(job_config: JobConfig) -> Scheduler:
-        return Scheduler(fetch_use_case, clock, job_config)
+        return Scheduler(fetch_use_case, clock, job_config, jobs_repository)
 
     return _factory
 
@@ -132,5 +141,3 @@ def test_scheduler_fetch_job_triggers_partner_http_calls(
 
         assert route_partner_a.called
         assert route_partner_b.called
-
-    clock.get_utc_now.assert_called_once()

@@ -8,7 +8,9 @@ from backend.shared.config.settings import Settings
 @patch.dict(
     os.environ,
     {
-        "DATABASE_URL": "any-database-url",
+        "POSTGRES_USER": "postgres-user",
+        "POSTGRES_PASSWORD": "postgres-password",
+        "POSTGRES_DB": "postgres-db",
         "SCHEDULER_CRON": "0 * * * *",
         "LOGISTICS_A_URL": "http://a",
         "LOGISTICS_B_URL": "http://b",
@@ -21,7 +23,15 @@ from backend.shared.config.settings import Settings
 )
 def test_settings_reads_all_fields_from_environment():
     settings = Settings()
-    assert settings.database_url == "any-database-url"
+    assert settings.postgres_user == "postgres-user"
+    assert settings.postgres_password == "postgres-password"
+    assert settings.postgres_db == "postgres-db"
+    assert settings.postgres_host == "db"
+    assert settings.postgres_port == 5432
+    assert (
+        settings.postgres_dsn
+        == "postgresql+psycopg://postgres-user:postgres-password@db:5432/postgres-db"
+    )
     assert isinstance(settings.cron_trigger, CronTrigger)
     endpoints = settings.partner_endpoints
     assert set(endpoints.keys()) == {"source-a", "source-b"}
@@ -36,7 +46,9 @@ def test_settings_reads_all_fields_from_environment():
 
 @pytest.mark.parametrize("missing",
                          [
-                             "DATABASE_URL",
+                             "POSTGRES_USER",
+                             "POSTGRES_PASSWORD",
+                             "POSTGRES_DB",
                              "SCHEDULER_CRON",
                              "LOGISTICS_A_URL",
                              "LOGISTICS_B_URL",
@@ -46,7 +58,9 @@ def test_settings_reads_all_fields_from_environment():
                          ])
 def test_settings_missing_required_field_raises(missing):
     env = {
-        "DATABASE_URL": "any-database-url",
+        "POSTGRES_USER": "postgres-user",
+        "POSTGRES_PASSWORD": "postgres-password",
+        "POSTGRES_DB": "postgres-db",
         "SCHEDULER_CRON": "0 * * * *",
         "LOGISTICS_A_URL": "http://a",
         "LOGISTICS_B_URL": "http://b",
@@ -63,8 +77,15 @@ def test_settings_missing_required_field_raises(missing):
 @patch.dict(
     os.environ,
     {
-        "DATABASE_URL": "postgresql://user:pw@db:5432/db",
+        "POSTGRES_USER": "postgres-user",
+        "POSTGRES_PASSWORD": "postgres-password",
+        "POSTGRES_DB": "postgres-db",
         "SCHEDULER_CRON": "invalid cron",
+        "LOGISTICS_A_URL": "http://a",
+        "LOGISTICS_B_URL": "http://b",
+        "SITE_ID": "any-site-id",
+        "SOURCE_A": "source-a",
+        "SOURCE_B": "source-b",
     },
     clear=True,
 )
@@ -77,7 +98,9 @@ def test_settings_invalid_cron_raises():
 @patch.dict(
     os.environ,
     {
-        "DATABASE_URL": "any-database-url",
+        "POSTGRES_USER": "postgres-user",
+        "POSTGRES_PASSWORD": "postgres-password",
+        "POSTGRES_DB": "postgres-db",
         "SCHEDULER_CRON": "0 * * * *",
         "LOGISTICS_A_URL": "http://a",
         "LOGISTICS_B_URL": "http://b",
@@ -90,6 +113,8 @@ def test_settings_invalid_cron_raises():
 def test_settings_http_timeout_defaults_to_five_seconds():
     settings = Settings()
     assert settings.http_timeout == 5.0
+    assert settings.postgres_host == "db"
+    assert settings.postgres_port == 5432
     assert settings.partner_sources == {"source-a", "source-b"}
     endpoints = settings.partner_endpoints
     assert set(endpoints.keys()) == {"source-a", "source-b"}

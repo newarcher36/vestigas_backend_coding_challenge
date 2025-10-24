@@ -3,10 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Mapping
 
-from fastapi import Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict, BaseModel
 
-from backend.shared.config.settings import Settings, get_settings
+from backend.shared.config.settings import get_settings
 
 
 class HttpConfig(BaseModel):
@@ -15,9 +14,9 @@ class HttpConfig(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-
 @lru_cache
-def get_http_config(settings: Settings = Depends(get_settings)) -> HttpConfig:
+def get_http_config() -> HttpConfig:
+    settings = get_settings()
     return HttpConfig(
         timeout=settings.http_timeout,
         endpoints=settings.partner_endpoints,

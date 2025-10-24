@@ -8,6 +8,6 @@ class Clock:
 
 
 @lru_cache
-def get_utc_clock() -> "Clock":
+def get_utc_clock() -> Clock:
     """Return the shared UtcMidnightToday singleton."""
     return Clock()

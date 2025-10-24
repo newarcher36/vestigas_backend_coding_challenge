@@ -16,16 +16,18 @@ from backend.ports.fetch_partner_deliveries_port import FetchPartnerDeliveriesPo
 logger = logging.getLogger(__name__)
 
 
-class FetchPartnerDeliveriesHttpAdapter(FetchPartnerDeliveriesPort):
-    def __init__(self, http_config: HttpConfig = Depends(get_http_config)):
+class PartnerDeliveriesHttpAdapter(FetchPartnerDeliveriesPort):
+    def __init__(self, http_config: HttpConfig):
         self._timeout = http_config.timeout
         self.endpoints = http_config.endpoints
 
-    async def _fetch_partner_deliveries_async(self, source: str, url: str) -> List[PartnerDelivery]:
+    async def _fetch_async(self, source: str, url: str) -> List[PartnerDelivery]:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
+            logger.info("Fetching deliveries from %s", source)
             try:
                 response = await client.post(url)
                 response.raise_for_status()
+                logger.debug("Response body: %s", response.text)
                 return [PartnerDelivery(source=source, delivery_data=response.json())]
             except httpx.HTTPStatusError as exc:
                 logger.error("HTTP error fetching deliveries from %s: %s", source, exc)
@@ -37,13 +39,14 @@ class FetchPartnerDeliveriesHttpAdapter(FetchPartnerDeliveriesPort):
                 logger.error("Unexpected error fetching deliveries from %s: %s", source, exc)
                 raise PartnerDeliveryFetchError(source, str(exc)) from exc
 
-    def fetch_partner_deliveries(self, source: str) -> List[PartnerDelivery]:
+    def fetch(self, source: str) -> List[PartnerDelivery]:
         url = self.endpoints.get(source)
         if url is None:
             logger.error("Unknown partner source requested: %s", source)
             raise PartnerDeliveryFetchError(source, "Unknown partner source")
-        return asyncio.run(self._fetch_partner_deliveries_async(source, url))
+        return asyncio.run(self._fetch_async(source, url))
 
 @lru_cache
 def get_fetch_partner_deliveries_port() -> FetchPartnerDeliveriesPort:
-    return FetchPartnerDeliveriesHttpAdapter()
+    http_config: HttpConfig = get_http_config()
+    return PartnerDeliveriesHttpAdapter(http_config=http_config)

@@ -8,3 +8,5 @@ pydantic-settings
 respx
 asgi-lifespan
 python-dateutil
+sqlalchemy
+psycopg[binary]

@@ -4,10 +4,9 @@ from functools import lru_cache
 from typing import Any
 
 from apscheduler.triggers.base import BaseTrigger
-from fastapi import Depends
 from pydantic import BaseModel, ConfigDict
 
-from backend.shared.config.settings import Settings, get_settings
+from backend.shared.config.settings import get_settings
 
 
 class JobConfig(BaseModel):
@@ -25,13 +24,14 @@ class JobConfig(BaseModel):
 
 
 @lru_cache
-def get_default_job_config(settings: Settings = Depends(get_settings)) -> JobConfig:
+def get_default_job_config() -> JobConfig:
+    settings = get_settings()
     return JobConfig(
         id="partners-fetch",
         replace_existing=True,
         coalesce=True,
         max_instances=1,
-        jobstore="memory",
+        jobstore="default",
         name="partners-fetch-job",
         description="Fetch partner deliveries scheduled job.",
         trigger=settings.cron_trigger,

@@ -10,7 +10,7 @@ from backend.domain.partner_delivery_fetch_error import PartnerDeliveryFetchErro
 
 def test_fetch_partner_deliveries_use_case_continues_on_partner_failure():
     partner_sources = {"Partner A", "Partner B"}
-    expected_delivery = PartnerDelivery(source="Partner B", delivery_data={"delivery_id": "xyz"})
+    expected_delivery = PartnerDelivery(source="Partner B", delivery_data=[{"delivery_id": "xyz"}])
 
     def fetch_side_effect(source: str):
         if source == "Partner A":
@@ -20,10 +20,10 @@ def test_fetch_partner_deliveries_use_case_continues_on_partner_failure():
         raise AssertionError(f"Unexpected source {source}")
 
     port = MagicMock()
-    port.fetch_partner_deliveries.side_effect = fetch_side_effect
+    port.fetch.side_effect = fetch_side_effect
     use_case = FetchPartnerDeliveriesUseCase(fetch_partner_deliveries_port=port)
 
     result = use_case.fetch_partner_deliveries("site-123", datetime.now(timezone.utc), partner_sources)
 
-    assert port.fetch_partner_deliveries.call_count == 2
+    assert port.fetch.call_count == 2
     assert result == [expected_delivery]

@@ -19,4 +19,5 @@ class JobModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     input: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    stats: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -3,10 +3,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from functools import lru_cache
-from typing import List
 
 import httpx
-from fastapi import Depends
 
 from backend.adapters.outbound.partners.http_config import HttpConfig, get_http_config
 from backend.domain.partner_delivery import PartnerDelivery
@@ -21,25 +19,25 @@ class PartnerDeliveriesHttpAdapter(FetchPartnerDeliveriesPort):
         self._timeout = http_config.timeout
         self.endpoints = http_config.endpoints
 
-    async def _fetch_async(self, source: str, url: str) -> List[PartnerDelivery]:
+    async def _fetch_async(self, source: str, url: str) -> PartnerDelivery:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             logger.info("Fetching deliveries from %s", source)
             try:
                 response = await client.post(url)
                 response.raise_for_status()
                 logger.debug("Response body: %s", response.text)
-                return [PartnerDelivery(source=source, delivery_data=response.json())]
+                return PartnerDelivery(delivery_data=response.json())
             except httpx.HTTPStatusError as exc:
                 logger.error("HTTP error fetching deliveries from %s: %s", source, exc)
                 raise PartnerDeliveryFetchError(source, str(exc)) from exc
             except httpx.RequestError as exc:
                 logger.error("Request error fetching deliveries from %s: %s", source, exc)
                 raise PartnerDeliveryFetchError(source, str(exc)) from exc
-            except Exception as exc:  # pragma: no cover
+            except Exception as exc:
                 logger.error("Unexpected error fetching deliveries from %s: %s", source, exc)
                 raise PartnerDeliveryFetchError(source, str(exc)) from exc
 
-    def fetch(self, source: str) -> List[PartnerDelivery]:
+    def fetch(self, source: str) -> PartnerDelivery:
         url = self.endpoints.get(source)
         if url is None:
             logger.error("Unknown partner source requested: %s", source)

@@ -8,6 +8,7 @@ from backend.adapters.outbound.partners.fetch_partner_deliveries_http_adapter im
     PartnerDeliveriesHttpAdapter,
 )
 from backend.adapters.outbound.partners.http_config import HttpConfig
+from backend.domain.partner_delivery import PartnerDelivery
 from backend.domain.partner_delivery_fetch_error import PartnerDeliveryFetchError
 
 
@@ -30,9 +31,8 @@ def test_fetch_partner_deliveries_http_adapter_integration_success():
         deliveries = adapter.fetch("Partner A")
 
     assert route.called
-    assert len(deliveries) == 1
-    assert deliveries[0].source == "Partner A"
-    assert deliveries[0].delivery_data == payload
+    assert isinstance(deliveries, PartnerDelivery)
+    assert deliveries.delivery_data == payload
 
 
 def test_fetch_partner_deliveries_http_adapter_integration_http_error():

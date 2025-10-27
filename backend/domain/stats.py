@@ -1,56 +1,50 @@
 from __future__ import annotations
 
-from typing import Dict
-
 from pydantic import BaseModel, Field
 
-
-class PartnerStats(BaseModel):
-    """Statistics collected while processing deliveries for a single partner."""
-
-    fetched: int = 0
-    transformed: int = 0
-    errors: int = 0
-
-    model_config = {"validate_assignment": True}
-
-    def increment(self, field: str, amount: int = 1) -> None:
-        current_value = getattr(self, field, None)
-        if current_value is None:
-            raise AttributeError(f"Invalid stats field: {field}")
-        setattr(self, field, current_value + amount)
+from backend.domain.stats_fields import StatsFields
 
 
 class Stats(BaseModel):
-    """Aggregated statistics for a delivery fetch job."""
+    """Statistics collected while processing deliveries for a single partner."""
 
-    partners: Dict[str, PartnerStats] = Field(default_factory=dict)
+    partner: str
+    stats: dict[StatsFields, int] = Field(
+        default_factory=lambda: {
+            StatsFields.FETCHED: 0,
+            StatsFields.TRANSFORMED: 0,
+            StatsFields.ERRORS: 0,
+        },
+    )
     stored: int = 0
 
     model_config = {"validate_assignment": True}
 
-    def for_partner(self, partner: str) -> PartnerStats:
-        """Return the partner stats instance, creating it on first access."""
-        if partner not in self.partners:
-            self.partners[partner] = PartnerStats()
-        return self.partners[partner]
+    @classmethod
+    def for_partner(cls, partner: str) -> Stats:
+        """Factory that initialises stats for a specific partner."""
+        return cls(partner=partner)
 
-    def record_fetched(self, partner: str, count: int = 1) -> None:
-        self.for_partner(partner).increment("fetched", count)
+    def _increment(self, field: StatsFields, amount: int) -> None:
+        self.stats[field] += amount
 
-    def record_transformed(self, partner: str, count: int = 1) -> None:
-        self.for_partner(partner).increment("transformed", count)
+    def record_fetched(self, count: int = 1) -> None:
+        self._increment(StatsFields.FETCHED, count)
 
-    def record_errors(self, partner: str, count: int = 1) -> None:
-        self.for_partner(partner).increment("errors", count)
+    def record_transformed(self, count: int = 1) -> None:
+        self._increment(StatsFields.TRANSFORMED, count)
+
+    def record_errors(self, count: int = 1) -> None:
+        self._increment(StatsFields.ERRORS, count)
 
     def record_stored(self, count: int = 1) -> None:
         self.stored += count
 
     def as_dict(self) -> dict[str, object]:
         """Return a serialisable representation aligned with the assignment contract."""
-        payload: dict[str, object] = {
-            partner: stats.model_dump() for partner, stats in self.partners.items()
+        partner_stats = {
+            StatsFields.FETCHED.value: self.stats[StatsFields.FETCHED],
+            StatsFields.TRANSFORMED.value: self.stats[StatsFields.TRANSFORMED],
+            StatsFields.ERRORS.value: self.stats[StatsFields.ERRORS],
         }
-        payload["stored"] = self.stored
-        return payload
+        return {self.partner: partner_stats, StatsFields.STORED.value: self.stored}

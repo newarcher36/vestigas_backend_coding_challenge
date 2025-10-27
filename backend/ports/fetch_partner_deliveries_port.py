@@ -9,6 +9,6 @@ from backend.domain.partner_delivery import PartnerDelivery
 class FetchPartnerDeliveriesPort(ABC):
 
     @abstractmethod
-    def fetch(self, source: str) -> List[PartnerDelivery]:
+    def fetch(self, source: str) -> PartnerDelivery:
         """Retrieve raw partner deliveries for the given partner source."""
         pass

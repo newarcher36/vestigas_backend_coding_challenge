@@ -1,29 +1,38 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from backend.application.use_cases.fetch_deliveries import FetchPartnerDeliveriesUseCase
 from backend.domain.partner_delivery import PartnerDelivery
-from backend.domain.partner_delivery_fetch_error import PartnerDeliveryFetchError
+from backend.domain.stats import Stats
 
 
-def test_fetch_partner_deliveries_use_case_continues_on_partner_failure():
-    partner_sources = {"Partner A", "Partner B"}
-    expected_delivery = PartnerDelivery(source="Partner B", delivery_data=[{"delivery_id": "xyz"}])
+def test_fetch_partner_deliveries_use_case_fetches_and_processes_partner_delivery():
+    partner_delivery = PartnerDelivery(delivery_data=[{"delivery_id": "xyz"}])
+    expected_stats = Stats.for_partner("Partner A")
 
-    def fetch_side_effect(source: str):
-        if source == "Partner A":
-            raise PartnerDeliveryFetchError(source, "boom")
-        if source == "Partner B":
-            return [expected_delivery]
-        raise AssertionError(f"Unexpected source {source}")
+    fetch_port = MagicMock()
+    fetch_port.fetch.return_value = partner_delivery
+    mapper = MagicMock()
 
-    port = MagicMock()
-    port.fetch.side_effect = fetch_side_effect
-    use_case = FetchPartnerDeliveriesUseCase(fetch_partner_deliveries_port=port)
+    with patch("backend.application.use_cases.fetch_deliveries.PartnerDeliveryProcessor") as mock_processor_cls:
+        mock_processor_instance = mock_processor_cls.return_value
+        expected_unified_deliveries = []
+        mock_processor_instance.process.return_value = (expected_unified_deliveries, expected_stats)
 
-    result = use_case.fetch_partner_deliveries("site-123", datetime.now(timezone.utc), partner_sources)
+        use_case = FetchPartnerDeliveriesUseCase(
+            fetch_partner_deliveries_port=fetch_port,
+            partner_delivery_mapper=mapper,
+        )
 
-    assert port.fetch.call_count == 2
-    assert result == [expected_delivery]
+        stats, unified_deliveries = use_case.fetch_partner_deliveries("site-123", "Partner A")
+
+    fetch_port.fetch.assert_called_once_with("Partner A")
+    mock_processor_cls.assert_called_once_with(mapper)
+    mock_processor_instance.process.assert_called_once_with(
+        delivery=partner_delivery,
+        source="Partner A",
+        site_id="site-123",
+    )
+    assert stats is expected_stats
+    assert unified_deliveries is expected_unified_deliveries

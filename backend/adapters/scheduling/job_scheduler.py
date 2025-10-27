@@ -14,15 +14,28 @@ from backend.application.use_cases.fetch_deliveries import (
     FetchPartnerDeliveriesUseCase,
     get_fetch_partner_deliveries_use_case,
 )
+from backend.application.use_cases.store_unified_deliveries import (
+    StoreUnifiedDeliveriesUseCase,
+    get_store_unified_deliveries_use_case,
+)
 from backend.shared.utils.date_utils import Clock, get_utc_clock
+from backend.domain.partner_delivery_fetch_error import PartnerDeliveryFetchError
+from backend.domain.stats import Stats
 
 logger = logging.getLogger("uvicorn.error")
 
 
 class Scheduler:
-    def __init__(self, fetch_partner_deliveries_use_case: FetchPartnerDeliveriesUseCase, clock: Clock,
-                 job_config: JobConfig, job_repository: JobsRepository):
+    def __init__(
+        self,
+        fetch_partner_deliveries_use_case: FetchPartnerDeliveriesUseCase,
+        store_unified_deliveries_use_case: StoreUnifiedDeliveriesUseCase,
+        clock: Clock,
+        job_config: JobConfig,
+        job_repository: JobsRepository,
+    ):
         self._fetch_deliveries_use_case = fetch_partner_deliveries_use_case
+        self._store_unified_deliveries_use_case = store_unified_deliveries_use_case
         self._clock = clock
         self._job_config = job_config
         self._job_repository = job_repository
@@ -43,7 +56,8 @@ class Scheduler:
         """Invoke the fetch use case as the scheduled job."""
         utc_now = self._clock.get_utc_now()
         job_id = uuid4()
-        self._job_repository.create_job(job_id, JobStatus.PROCESSING, self._clock.get_utc_now(), self._clock.get_utc_now(), {},None)
+        input: dict[str, str] = {"site_id": site_id, "date": utc_now.isoformat()}
+        self._job_repository.create_job(job_id, JobStatus.PROCESSING, utc_now, utc_now, input)
         logger.info("Job %s created at %s.", job_id, utc_now.isoformat())
         logger.info(
             "Fetching partner deliveries for site %s using sources %s (scheduled at %s).",
@@ -51,20 +65,37 @@ class Scheduler:
             sorted(partner_sources),
             utc_now.isoformat(),
         )
-        deliveries = self._fetch_deliveries_use_case.fetch_partner_deliveries(site_id, utc_now, partner_sources)
-        logger.info(
-            "Fetched %d partner deliveries for site %s (scheduled at %s).",
-            len(deliveries),
-            site_id,
-            utc_now.isoformat(),
-        )
+        for source in partner_sources:
+            stats: Stats = Stats.for_partner(source)
+            error: str | None = None
+            try:
+                stats, unified_deliveries = self._fetch_deliveries_use_case.fetch_partner_deliveries(
+                    site_id,
+                    source,
+                )
+                logger.info("Stored %d unified deliveries for source %s.", len(unified_deliveries), source)
+                self._store_unified_deliveries_use_case.store(job_id, unified_deliveries)
+            except PartnerDeliveryFetchError as exc:
+                logger.error("Failed to fetch deliveries for source %s: %s", source, exc)
+                error = str(exc)
 
+            updated_at = self._clock.get_utc_now()
+            self._job_repository.update_job_stats(job_id, stats, updated_at, error)
+
+        logger.info("Job %s ended at %s.", job_id, utc_now.isoformat())
 
 @lru_cache
 def get_job_scheduler(
         fetch_partner_deliveries_use_case: FetchPartnerDeliveriesUseCase = Depends(get_fetch_partner_deliveries_use_case),
+        store_unified_deliveries_use_case: StoreUnifiedDeliveriesUseCase = Depends(get_store_unified_deliveries_use_case),
         clock: Clock = Depends(get_utc_clock),
         jobs_repository: JobsRepository = Depends(get_jobs_port)
 ) -> Scheduler:
     job_config: JobConfig = get_default_job_config()
-    return Scheduler(fetch_partner_deliveries_use_case, clock, job_config, jobs_repository)
+    return Scheduler(
+        fetch_partner_deliveries_use_case,
+        store_unified_deliveries_use_case,
+        clock,
+        job_config,
+        jobs_repository,
+    )
